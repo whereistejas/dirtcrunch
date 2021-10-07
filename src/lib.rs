@@ -6,3 +6,4 @@ mod container;
 mod core_structs;
 
 pub use connector::Source;
+pub use container::Container;

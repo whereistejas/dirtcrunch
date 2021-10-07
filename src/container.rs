@@ -1,5 +1,5 @@
 use futures::TryStreamExt;
-use shiplift::{ContainerOptions, Docker, PullOptions};
+use shiplift::{ContainerOptions, Docker, PullOptions, RmContainerOptions};
 
 // This module implements methods that are used to interact with contianers.
 
@@ -80,5 +80,11 @@ impl Container {
             .iter()
             .map(|s| String::from_utf8(s.to_vec()).unwrap())
             .collect::<Vec<_>>()
+    }
+
+    pub async fn delete_container(&mut self) -> Result<(), shiplift::Error> {
+        let container = self.docker.containers().get(&self.container_id);
+        let opts = RmContainerOptions::builder().build();
+        container.remove(opts).await
     }
 }
