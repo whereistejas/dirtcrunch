@@ -4,6 +4,8 @@ mod connector;
 mod container;
 // Airbyte data types for various connector commands.
 mod core_structs;
+// Utility methods.
+mod util;
 
-pub use connector::Source;
-pub use container::Container;
+pub use connector::{Command, Source};
+pub use util::*;
