@@ -1,11 +1,13 @@
+use serde::{Deserialize, Serialize};
+
 // TODO: We need to determine which fields, structs and enums need to be public.
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum ConnectionStatus {
     Succeeded,
     Failed,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct AirbyteConnectionStatus {
     pub status: ConnectionStatus,
     pub message: String,
