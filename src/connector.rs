@@ -2,6 +2,7 @@
 use crate::{container::Container, core_structs::AirbyteConnectionStatus};
 use async_trait::async_trait;
 
+/// The set of connector commands that are defined in the specification.
 #[derive(Debug)]
 pub enum Command {
     Spec(String),
@@ -10,13 +11,17 @@ pub enum Command {
     Read,
 }
 
+/// Core Source trait that defines the Airbyte Connector
+/// [specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification).
 #[async_trait]
 pub trait Source {
-    const IMAGE_NAME: &'static str;
+    /// Name of the connector for which we are implementing the trait.
+    const CONNECTOR: &'static str;
 
+    /// This method returns the SPECS for a ['CONNECTOR']
     async fn specs() -> Command {
         let mut container = Container::new();
-        container.prepare_image(Self::IMAGE_NAME).await;
+        container.prepare_image(Self::CONNECTOR).await;
         let result = container.start_container("spec").await;
 
         let search_string = "{\"type\": \"SPEC\",";

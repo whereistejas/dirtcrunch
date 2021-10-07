@@ -1,5 +1,7 @@
-use futures::{AsyncWriteExt, TryStreamExt};
+use futures::TryStreamExt;
 use shiplift::{ContainerOptions, Docker, PullOptions};
+
+// This module implements methods that are used to interact with contianers.
 
 pub struct Container {
     docker: Docker,
@@ -33,19 +35,12 @@ impl Container {
             .expect("Could not pull the latest docker images from the internet.");
     }
 
-    // TODO: This lifetime and return trait definition can be written in a better way.
-    // use futures::{AsyncWriteExt, Stream, TryStreamExt};
-    // use shiplift::{tty::TtyChunk, ContainerOptions, Docker, Error, PullOptions};
-    // pub async fn start_container(
-    //      &'_ mut self,
-    //      command: &str,
-    // ) -> impl futures::Stream<Item = Result<TtyChunk, Error>> + '_ {
-
-    pub async fn start_container(&'_ mut self, command: &str) -> Vec<String> {
+    async fn create_container(&mut self, command: &str) {
         // Create container
         let opts = ContainerOptions::builder(&self.image_name)
             .attach_stdin(true)
             .attach_stdout(true)
+            .cmd(vec![command])
             .build();
 
         let result = self
@@ -57,21 +52,24 @@ impl Container {
 
         // Get container ID.
         self.container_id = result.id;
+    }
+
+    // TODO: This lifetime and return trait definition can be written in a better way.
+    // use futures::{AsyncWriteExt, Stream, TryStreamExt};
+    // use shiplift::{tty::TtyChunk, ContainerOptions, Docker, Error, PullOptions};
+    // pub async fn start_container(
+    //      &'_ mut self,
+    //      command: &str,
+    // ) -> impl futures::Stream<Item = Result<TtyChunk, Error>> + '_ {
+
+    pub async fn start_container(&'_ mut self, command: &str) -> Vec<String> {
+        self.create_container(command).await;
 
         let container = self.docker.containers().get(&self.container_id);
-        let (read, mut write) = container.attach().await.unwrap().split();
-
-        // Give connector command
-        write
-            .write(command.as_bytes())
-            .await
-            .expect("Failed to give connector command to docker container.");
+        let (read, _) = container.attach().await.unwrap().split();
 
         // Start container
-        container
-            .start()
-            .await
-            .expect("Failed to start discussion.");
+        container.start().await.expect("Failed to start container.");
 
         let result_bytes = read
             .try_collect::<Vec<_>>()
