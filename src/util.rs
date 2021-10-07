@@ -36,9 +36,9 @@ pub async fn get_specs(connector: &str) -> Value {
 }
 
 #[derive(Debug)]
-struct Field {
-    name: String,
-    ftype: String,
+struct Field<'a> {
+    name: &'a str,
+    ftype: &'a str,
 }
 
 fn create_fields(json: &Value) -> Vec<Field> {
@@ -59,10 +59,7 @@ fn create_fields(json: &Value) -> Vec<Field> {
             let pointer = format!("/spec/connectionSpecification/properties/{}/type", field);
             let ftype = json.pointer(&pointer).unwrap().as_str().unwrap();
 
-            Field {
-                name: field.to_string(),
-                ftype: ftype.to_string(),
-            }
+            Field { name: field, ftype }
         })
         .collect::<Vec<Field>>();
 
@@ -71,12 +68,15 @@ fn create_fields(json: &Value) -> Vec<Field> {
 
 pub fn create_file(name: &str, json: Value) -> String {
     let fields = create_fields(&json);
-    let structure = create_struct(name, &fields);
+    let config = create_config(&fields);
 
     r#"use dirtcrunch::{Command, Source};
 use serde_json::Value;
+use async_trait::async_trait;
 
-STRUCT
+CONFIG
+
+struct NAME {}
 
 impl NAME {
     pub fn new() -> Self {
@@ -84,34 +84,37 @@ impl NAME {
     }
 }
 
-impl Source for NAME {
-    fn specs() -> Command
+#[async_trait]
+impl Source<Config> for NAME {
+    fn specs(&self) -> Command
     { 
-        let value: Value = "SPECS";
+        let value: Value = Value::String(START SPECS END.to_string());
+
         Command::Spec(value)
     }
-    async fn discover() -> Command;
-    fn read() -> Command;
+    async fn discover(&self, config: &Config) -> Command { todo!() }
+    fn read(&self, config: &Config) -> Command { todo!() }
 }
 "#
-    .replace("STRUCT", &structure)
-    .replace("SPECS", &json.to_string())
     .replace("NAME", name)
+    .replace("CONFIG", &config)
+    .replace("START", "r#\"")
+    .replace("END", "\"#")
+    .replace("SPECS", &json.to_string())
 }
 
-fn create_struct(name: &str, fields: &[Field]) -> String {
-    let structure = r#"pub struct NAME {
-    FIELD
+fn create_config(fields: &[Field]) -> String {
+    let structure = r#"pub struct Config {
+FIELD
 }
 "#
-    .replace("NAME", name)
     .replace(
         "FIELD",
         {
             let mut line = String::new();
 
             for field in fields {
-                let ftype = match field.ftype.as_str() {
+                let ftype = match field.ftype {
                     "integer" => "i32".to_string(),
                     "object" | "string" => "String".to_string(),
                     _ => panic!("Encountered unknown type."),
