@@ -1,5 +1,5 @@
-use futures::TryStreamExt;
-use shiplift::{ContainerOptions, Docker, PullOptions, RmContainerOptions};
+use futures::{Stream, TryStreamExt};
+use shiplift::{tty::TtyChunk, ContainerOptions, Docker, PullOptions, Result, RmContainerOptions};
 
 // This module implements methods that are used to interact with contianers.
 
@@ -62,7 +62,10 @@ impl Container {
     //      command: &str,
     // ) -> impl futures::Stream<Item = Result<TtyChunk, Error>> + '_ {
 
-    pub async fn start_container(&'_ mut self, command: &str) -> Vec<String> {
+    pub async fn start_container(
+        &mut self,
+        command: &str,
+    ) -> impl Stream<Item = Result<TtyChunk>> + '_ {
         self.create_container(command).await;
 
         let container = self.docker.containers().get(&self.container_id);
@@ -71,18 +74,10 @@ impl Container {
         // Start container
         container.start().await.expect("Failed to start container.");
 
-        let result_bytes = read
-            .try_collect::<Vec<_>>()
-            .await
-            .expect("Failed to read command output from docker container.");
-
-        result_bytes
-            .iter()
-            .map(|s| String::from_utf8(s.to_vec()).unwrap())
-            .collect::<Vec<_>>()
+        read
     }
 
-    pub async fn delete_container(&mut self) -> Result<(), shiplift::Error> {
+    pub async fn delete_container(&mut self) -> Result<()> {
         let container = self.docker.containers().get(&self.container_id);
         let opts = RmContainerOptions::builder().build();
         container.remove(opts).await
