@@ -19,6 +19,6 @@ pub enum Command {
 pub trait Source<Config> {
     /// This method returns the SPECS for a ['CONNECTOR'].
     fn specs(&self) -> Command;
-    async fn discover(&self, config: &Config) -> Command;
-    fn read(&self, config: &Config) -> Command;
+    async fn discover(&self, config: &Config) -> Command { todo!() }
+    fn read(&self, config: &Config) -> Command { todo!() }
 }
