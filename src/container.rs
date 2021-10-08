@@ -35,13 +35,21 @@ impl Container {
             .expect("Could not pull the latest docker images from the internet.");
     }
 
-    async fn create_container(&mut self, command: &str) {
+    async fn create_container(&mut self, command: &str, volume: Option<Vec<&str>>) {
         // Create container
-        let opts = ContainerOptions::builder(&self.image_name)
-            .attach_stdin(true)
-            .attach_stdout(true)
-            .cmd(vec![command])
-            .build();
+        let opts = match volume {
+            Some(paths) => ContainerOptions::builder(&self.image_name)
+                .attach_stdin(true)
+                .attach_stdout(true)
+                .cmd(vec![command])
+                .volumes(paths)
+                .build(),
+            None => ContainerOptions::builder(&self.image_name)
+                .attach_stdin(true)
+                .attach_stdout(true)
+                .cmd(vec![command])
+                .build(),
+        };
 
         let result = self
             .docker
@@ -54,19 +62,12 @@ impl Container {
         self.container_id = result.id;
     }
 
-    // TODO: This lifetime and return trait definition can be written in a better way.
-    // use futures::{AsyncWriteExt, Stream, TryStreamExt};
-    // use shiplift::{tty::TtyChunk, ContainerOptions, Docker, Error, PullOptions};
-    // pub async fn start_container(
-    //      &'_ mut self,
-    //      command: &str,
-    // ) -> impl futures::Stream<Item = Result<TtyChunk, Error>> + '_ {
-
     pub async fn start_container(
         &mut self,
         command: &str,
+        volume: Option<Vec<&str>>,
     ) -> impl Stream<Item = Result<TtyChunk>> + '_ {
-        self.create_container(command).await;
+        self.create_container(command, volume).await;
 
         let container = self.docker.containers().get(&self.container_id);
         let (read, _) = container.attach().await.unwrap().split();
@@ -77,9 +78,9 @@ impl Container {
         read
     }
 
-    pub async fn delete_container(&mut self) -> Result<()> {
+    pub async fn delete_container(&mut self, volume: bool) -> Result<()> {
         let container = self.docker.containers().get(&self.container_id);
-        let opts = RmContainerOptions::builder().build();
+        let opts = RmContainerOptions::builder().volumes(volume).build();
         container.remove(opts).await
     }
 }
