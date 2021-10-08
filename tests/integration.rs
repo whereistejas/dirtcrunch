@@ -1,11 +1,12 @@
-use dirtcrunch::{create_file, get_specs};
+use dirtcrunch::{create_file, create_objects, get_specs};
 use std::fs;
 use std::path::Path;
 
 #[tokio::test]
 async fn test() {
     let json = get_specs("airbyte/source-file").await;
-    let file = create_file("SourceFile", json);
+    let objects = create_objects("SourceFile", "airbyte/source-file", json);
+    let file = create_file(objects);
 
     let path = Path::new("src/source-file.rs");
 
