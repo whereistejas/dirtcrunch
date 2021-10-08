@@ -16,9 +16,9 @@ pub enum Command {
 /// Core Source trait that defines the Airbyte Connector
 /// [specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification).
 #[async_trait]
-pub trait Source<Config> {
+pub trait Source {
     /// This method returns the SPECS for a ['CONNECTOR'].
-    fn specs(&self) -> Command;
+    fn specs(&self) -> Value;
     async fn discover(&self, config: &Config) -> Command { todo!() }
     fn read(&self, config: &Config) -> Command { todo!() }
 }
