@@ -1,10 +1,13 @@
 use crate::container::Container;
 use futures::TryStreamExt;
 use serde_json::Value;
+use shiplift::Docker;
 
 /// This method is meant to be used in `build.rs` to generate `source.rs`.
 pub async fn get_specs(connector: &str) -> Value {
-    let mut container = Container::new();
+    let docker = Docker::new();
+    let mut container = Container::new(&docker);
+
     // Set the image name.
     container.imagename(connector);
     container.prepare_image().await;

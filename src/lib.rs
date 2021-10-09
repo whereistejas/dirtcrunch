@@ -6,4 +6,5 @@ mod container;
 mod util;
 
 pub use connector::Source;
+pub use shiplift::Docker;
 pub use util::{container::*, file::*};

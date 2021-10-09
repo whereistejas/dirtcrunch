@@ -4,16 +4,16 @@ use shiplift::{tty::TtyChunk, ContainerOptions, Docker, PullOptions, Result, RmC
 // This module implements methods that are used to interact with contianers.
 
 #[derive(Clone)]
-pub struct Container {
-    docker: Docker,
+pub struct Container<'a> {
+    docker: &'a Docker,
     container_id: String,
     image_name: String,
 }
 
-impl Container {
-    pub fn new() -> Self {
+impl<'a> Container<'a> {
+    pub fn new(docker: &'a Docker) -> Self {
         Self {
-            docker: Docker::new(),
+            docker,
             container_id: String::new(),
             image_name: String::new(),
         }
@@ -43,7 +43,7 @@ impl Container {
 
     // Create the container with the given commands and volumes and return the ID of the new
     // container.
-    async fn create_container(&mut self, command: Vec<&str>, volume: Option<Vec<&str>>) -> String {
+    async fn create_container(&mut self, command: Vec<&str>, volume: Option<Vec<&str>>) {
         // Create container
         let opts = match volume {
             Some(paths) => ContainerOptions::builder(&self.image_name)
@@ -68,8 +68,6 @@ impl Container {
 
         // Get container ID.
         self.container_id = result.id.clone();
-
-        result.id
     }
 
     // Start container and read from its stdout for messages.
@@ -77,10 +75,9 @@ impl Container {
         &mut self,
         command: Vec<&str>,
         volume: Option<Vec<&str>>,
-    ) -> impl Stream<Item = Result<TtyChunk>> + '_ {
-        let container_id = self.create_container(command, volume).await;
-
-        let container = self.docker.containers().get(&container_id);
+    ) -> impl Stream<Item = Result<TtyChunk>> + 'a {
+        self.create_container(command, volume).await;
+        let container = self.docker.containers().get(&self.container_id);
         let (read, _) = container.attach().await.unwrap().split();
 
         // Start container
