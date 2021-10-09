@@ -3,7 +3,7 @@ use futures::TryStreamExt;
 use serde_json::Value;
 use shiplift::Docker;
 
-/// This method is meant to be used in `build.rs` to generate `source.rs`.
+/// This method returns the SPECS of the source connector.
 pub async fn get_specs(connector: &str) -> Value {
     let docker = Docker::new();
     let mut container = Container::new(&docker);
@@ -24,6 +24,7 @@ pub async fn get_specs(connector: &str) -> Value {
         .map(|s| String::from_utf8(s.to_vec()).unwrap())
         .collect::<Vec<_>>();
 
+    // Search for the SPECS JSON object.
     let search_string = "{\"type\": \"SPEC\",";
     let spec = result
         .iter()

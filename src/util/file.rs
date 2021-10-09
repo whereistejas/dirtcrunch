@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-// Generate the file which we need to add
+/// Put the Source trait objects in a `.rs` file.
 pub fn create_file(content: String) -> String {
     r#"use dirtcrunch::Source;
 
@@ -9,6 +9,7 @@ CONTENT
     .replace("CONTENT", &content)
 }
 
+/// Create the connector struct and implement the Source trait for that struct.
 pub fn create_objects(name: &str, image: &str, json: Value) -> String {
     r#"pub struct NAME {}
 

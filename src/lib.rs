@@ -2,7 +2,7 @@
 mod connector;
 // Handles container operations.
 mod container;
-// Utility methods.
+// Utility methods, that are used in `build.rs` to generate the `Source` trait implementations.
 mod util;
 
 pub use connector::Source;
