@@ -1,52 +1,51 @@
-// TODO: doing this is probably not the best thing.
 use crate::container::Container;
 use async_trait::async_trait;
-use futures::TryStreamExt;
-use serde::{Deserialize, Serialize};
+use futures::{Stream, StreamExt, TryStreamExt};
 use serde_json::Value;
-use tokio::fs;
+use std::env;
+use std::pin::Pin;
+use tokio::fs::{create_dir, remove_file, File};
+use tokio::io::AsyncWriteExt;
 
-/// The set of connector commands that are defined in the specification.
-#[derive(Debug, Serialize, Deserialize)]
-pub enum AirbyteReturn {
-    Config(Value),
-    AirbyteConnectionStatus(Value),
-    AirbyteCatalog(Value),
-    AirbyteStream,
-}
-
-/// Core Source trait that defines the Airbyte Connector
-/// [specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification).
+/// Core Source trait that defines the Airbyte Connector [specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification).
 #[async_trait]
-pub trait Source<'a, Config>
-where
-    Config: Serialize + Send + Sync,
-{
+pub trait Source<'a> {
     /// Name of the source docker image that we are using.
     const IMAGE: &'a str;
 
-    /// This method returns the SPECS for a ['CONNECTOR'].
-    fn specs(&self) -> AirbyteReturn;
+    /// This method returns the SPECS for a connector.
+    fn specs(&self) -> Value;
 
-    fn check(&self, config: &Config) -> AirbyteReturn;
+    /// Discover the schema of the underlying datasource.
+    /// *NOTE*: This method does not handle the parsing of the output recieved from the
+    /// discover command. Each connector has it's own output format and its kind of
+    /// difficult to handle it in a generic way. We expect the caller to do this on
+    /// its own.
+    async fn discover(&self, config: &Value) -> Vec<String> {
+        // Write config to local filesystem, so that it can mounted as a volume.
+        if !std::path::Path::new("app/").exists() {
+            create_dir("app").await.expect(
+                "Failed to create app directory on local filesystem for mounting as a volume.",
+            );
+        }
+        let mut file = File::create("app/config")
+            .await
+            .expect("Failed to create config file.");
+        let config: String = serde_json::to_string(config).unwrap();
+        file.write_all(config.as_bytes())
+            .await
+            .expect("Failed to write JSON config to file.");
 
-    async fn discover(&self, config: &Config) -> AirbyteReturn {
-        // Write config to virtual filesystem.
-        fs::create_dir("app").await.unwrap();
-        fs::write(
-            "app/config",
-            serde_json::to_string(&config).unwrap().as_bytes(),
-        )
-        .await
-        .unwrap();
+        let path = format!("{}/app:/app", env::current_dir().unwrap().to_str().unwrap());
 
-        // We need to add volumes to the container.
         let mut container = Container::new();
-        container.prepare_image(Self::IMAGE).await;
-        let volume = vec!["app/config:app/config"];
+        container.imagename(Self::IMAGE);
 
         let read = container
-            .start_container("discover --config config", Some(volume))
+            .start_container(
+                vec!["discover", "--config", "/app/config"],
+                Some(vec![&path]),
+            )
             .await;
 
         let result_bytes = read
@@ -54,15 +53,17 @@ where
             .await
             .expect("Failed to read command output from docker container.");
 
-        let result = result_bytes
+        remove_file("app/config")
+            .await
+            .expect("Failed to remove config file.");
+
+        result_bytes
             .iter()
             .map(|s| String::from_utf8(s.to_vec()).unwrap())
-            .collect::<Vec<_>>();
-
-        println!("{:?}", result);
-
-        AirbyteReturn::AirbyteCatalog(serde_json::from_str(&result[1]).unwrap())
+            .collect::<Vec<_>>()
     }
 
-    fn read(&self, config: &Config) -> AirbyteReturn;
+    async fn read(&self, config: &Value) -> Pin<Box<dyn Stream<Item = String>>> {
+        todo!()
+    }
 }

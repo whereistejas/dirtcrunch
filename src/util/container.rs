@@ -5,9 +5,11 @@ use serde_json::Value;
 /// This method is meant to be used in `build.rs` to generate `source.rs`.
 pub async fn get_specs(connector: &str) -> Value {
     let mut container = Container::new();
-    container.prepare_image(connector).await;
+    // Set the image name.
+    container.imagename(connector);
+    container.prepare_image().await;
 
-    let read = container.start_container("spec", None).await;
+    let read = container.start_container(vec!["spec"], None).await;
 
     let result_bytes = read
         .try_collect::<Vec<_>>()
@@ -33,5 +35,5 @@ pub async fn get_specs(connector: &str) -> Value {
         .await
         .expect("Failed to remove connector.");
 
-    serde_json::from_str(spec.1).unwrap()
+    serde_json::from_str(spec.1).expect("Failed to parse the SPECS JSON object.")
 }

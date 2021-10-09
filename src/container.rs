@@ -3,6 +3,7 @@ use shiplift::{tty::TtyChunk, ContainerOptions, Docker, PullOptions, Result, RmC
 
 // This module implements methods that are used to interact with contianers.
 
+#[derive(Clone)]
 pub struct Container {
     docker: Docker,
     container_id: String,
@@ -18,9 +19,14 @@ impl Container {
         }
     }
 
-    pub async fn prepare_image(&mut self, image: &str) {
-        let images = self.docker.images();
+    // Set the imagename that we need to pull from dokcerhub and use to create the container.
+    pub fn imagename(&mut self, image: &str) {
         self.image_name = image.to_string();
+    }
+
+    // Pull image.
+    pub async fn prepare_image(&mut self) {
+        let images = self.docker.images();
 
         // Pull image
         let opts = PullOptions::builder()
@@ -35,19 +41,21 @@ impl Container {
             .expect("Could not pull the latest docker images from the internet.");
     }
 
-    async fn create_container(&mut self, command: &str, volume: Option<Vec<&str>>) {
+    // Create the container with the given commands and volumes and return the ID of the new
+    // container.
+    async fn create_container(&mut self, command: Vec<&str>, volume: Option<Vec<&str>>) -> String {
         // Create container
         let opts = match volume {
             Some(paths) => ContainerOptions::builder(&self.image_name)
                 .attach_stdin(true)
                 .attach_stdout(true)
-                .cmd(vec![command])
+                .cmd(command)
                 .volumes(paths)
                 .build(),
             None => ContainerOptions::builder(&self.image_name)
                 .attach_stdin(true)
                 .attach_stdout(true)
-                .cmd(vec![command])
+                .cmd(command)
                 .build(),
         };
 
@@ -59,17 +67,20 @@ impl Container {
             .expect("Could not create the docker container in the current system.");
 
         // Get container ID.
-        self.container_id = result.id;
+        self.container_id = result.id.clone();
+
+        result.id
     }
 
+    // Start container and read from its stdout for messages.
     pub async fn start_container(
         &mut self,
-        command: &str,
+        command: Vec<&str>,
         volume: Option<Vec<&str>>,
     ) -> impl Stream<Item = Result<TtyChunk>> + '_ {
-        self.create_container(command, volume).await;
+        let container_id = self.create_container(command, volume).await;
 
-        let container = self.docker.containers().get(&self.container_id);
+        let container = self.docker.containers().get(&container_id);
         let (read, _) = container.attach().await.unwrap().split();
 
         // Start container
@@ -78,6 +89,7 @@ impl Container {
         read
     }
 
+    // Remove container and volumes.
     pub async fn delete_container(&mut self, volume: bool) -> Result<()> {
         let container = self.docker.containers().get(&self.container_id);
         let opts = RmContainerOptions::builder().volumes(volume).build();

@@ -5,5 +5,5 @@ mod container;
 // Utility methods.
 mod util;
 
-pub use connector::{AirbyteReturn, Source};
+pub use connector::Source;
 pub use util::{container::*, file::*};
