@@ -1,3 +1,5 @@
+use serde_json::Value;
+
 /// This structure stores the varies fields for the `Config` struct.
 #[derive(Debug)]
 struct Field<'a> {
@@ -22,11 +24,11 @@ fn create_fields(json: &Value) -> Vec<Field> {
 
     let fields = required
         .iter()
-        .map(|field| {
-            let pointer = format!("/spec/connectionSpecification/properties/{}/type", field);
+        .map(|name| {
+            let pointer = format!("/spec/connectionSpecification/properties/{}/type", name);
             let ftype = json.pointer(&pointer).unwrap().as_str().unwrap();
 
-            Field { name: field, ftype }
+            Field { name, ftype }
         })
         .collect::<Vec<Field>>();
 

@@ -1,8 +1,8 @@
 // Methods to handle container operations in `build.rs`.
-pub mod container;
+pub mod specs;
 
 // Methods to create the `source.rs`.
-pub mod file;
+pub mod source;
 
 // Methods to create the `Config` struct.
 pub mod config;
