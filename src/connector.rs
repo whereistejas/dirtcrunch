@@ -5,7 +5,7 @@ use serde_json::Value;
 use shiplift::Docker;
 use std::{env, path::Path, pin::Pin};
 use tokio::{
-    fs::{create_dir, remove_file, File},
+    fs::{self, create_dir, File},
     io::AsyncWriteExt,
 };
 
@@ -22,39 +22,30 @@ pub trait Source<'a> {
     /// NOTE: This method doesn't parse the output received from the `discover` command. The caller
     /// is expected to extracted the useful information from the returned `String`, on their own.
     async fn discover(&self, config: &Value) -> Vec<String> {
-        // Check if the `app` folder exists. We will bind this folder to the container as a volume.
-        if !std::path::Path::new("app/").exists() {
-            create_dir("app").await.expect(
-                "Failed to create app directory on local filesystem for mounting as a volume.",
-            );
-        }
+        // Set path for the `app` folder.
+        let app_path = format!("{}/app", env::current_dir().unwrap().to_str().unwrap());
 
-        // Create the config file.
-        let mut file = File::create("app/config")
+        create_app_folder(&app_path)
             .await
-            .expect("Failed to create config file.");
+            .expect("failed to create app directory on local filesystem for mounting as a volume.");
 
-        // Write the config JSON to the file.
-        let config: String = serde_json::to_string(config).unwrap();
-        file.write_all(config.as_bytes())
-            .await
-            .expect("Failed to write JSON config to file.");
-
-        // Create the paths to the `app` folder that will be used for binding the folder to the
-        // container as a volume.
-        let config_path = format!("{}/app/", env::current_dir().unwrap().to_str().unwrap());
-        let path = format!("{}:/app", config_path);
+        let config_path = format!("{}/config", app_path);
+        write_file(&config_path, config).await;
 
         let docker = Docker::new();
         let mut container = Container::new(&docker);
         container.imagename(Self::IMAGE);
+
+        // Create the paths to the `app` folder that will be used for binding the folder to the
+        // container as a volume.
+        let volume_path = format!("{}:/app/", app_path);
 
         // Create container, run the command and receive a stream that will be used to read from
         // the stdout of the container.
         let read = container
             .start_container(
                 vec!["discover", "--config", "/app/config"],
-                Some(vec![&path]),
+                Some(vec![&volume_path]),
             )
             .await;
 
@@ -65,11 +56,7 @@ pub trait Source<'a> {
             .expect("Failed to read command output from docker container.");
 
         // Remove config file.
-        if Path::new(format!("{}/config", config_path).as_str()).exists() {
-            remove_file(format!("{}/config", config_path).as_str())
-                .await
-                .unwrap();
-        }
+        remove_file(&config_path).await;
 
         // Remove the container and volumes.
         container
@@ -94,38 +81,18 @@ pub trait Source<'a> {
         config: &Value,
         catalog: &Value,
     ) -> Pin<Box<dyn Stream<Item = String> + 'docker>> {
-        // Check if the `app` folder exists. We will bind this folder to the container as a volume.
-        if !std::path::Path::new("app/").exists() {
-            create_dir("app").await.expect(
-                "Failed to create app directory on local filesystem for mounting as a volume.",
-            );
-        }
+        // Set path for the `app` folder.
+        let app_path = format!("{}/app", env::current_dir().unwrap().to_str().unwrap());
 
-        // Create the config file.
-        let mut file = File::create("app/config")
+        create_app_folder(&app_path)
             .await
-            .expect("Failed to create config file.");
+            .expect("Failed to create app directory on local filesystem for mounting as a volume.");
 
-        // Write the config JSON to the file.
-        let config: String = serde_json::to_string(config).unwrap();
-        file.write_all(config.as_bytes())
-            .await
-            .expect("Failed to write JSON config to file.");
+        let config_path = format!("{}/config", app_path);
+        write_file(&config_path, config).await;
 
-        // Create the catalog file.
-        let mut file = File::create("app/catalog")
-            .await
-            .expect("Failed to create config file.");
-
-        // Write the catalog JSON to the file.
-        let catalog: String = serde_json::to_string(catalog).unwrap();
-        file.write_all(catalog.as_bytes())
-            .await
-            .expect("Failed to write JSON catalog to file.");
-
-        // Create the paths to the `app` folder that will be used for binding the folder to the
-        // container as a volume.
-        let path = format!("{}/app:/app", env::current_dir().unwrap().to_str().unwrap());
+        let catalog_path = format!("{}/catalog", app_path);
+        write_file(&catalog_path, catalog).await;
 
         let mut container = Container::new(docker);
         container.imagename(Self::IMAGE);
@@ -138,19 +105,55 @@ pub trait Source<'a> {
             "/app/catalog",
         ];
 
-        let volume = vec![path.as_str()];
+        // Create the paths to the `app` folder that will be used for binding the folder to the
+        // container as a volume.
+        let volume_path = format!("{}:/app/", app_path);
 
         // Create container, run the command and receive a stream that will be used to read from
         // the stdout of the container.
-        let read = container.start_container(command, Some(volume)).await;
+        let read = container
+            .start_container(command, Some(vec![&volume_path]))
+            .await;
 
         // NOTE: We are not cleaning the config and catalog files from our `app/` folder because
         // the container still lives on after we exit this method. At this point, I'm not sure if
         // the container volume copies the file into the container, or just links them to the
         // container.
+        // remove_file(&config_path).await;
+        // remove_file(&catalog_path).await;
 
         // Convert the type of the `read` stream from `&[u8]` to `String`.
         read.map(|s| String::from_utf8(s.unwrap().to_vec()).unwrap())
             .boxed()
+    }
+}
+
+async fn create_app_folder(path: &str) -> Result<(), std::io::Error> {
+    // Check if the `app` folder exists. We will bind this folder to the container as a volume.
+    if !std::path::Path::new(path).exists() {
+        create_dir(path).await
+    } else {
+        Ok(())
+    }
+}
+
+async fn write_file(file_path: &str, content: &Value) {
+    // Create the config file.
+    let mut file = File::create(file_path)
+        .await
+        .expect("Failed to create config file.");
+
+    // Write the config JSON to the file.
+    let content: String = serde_json::to_string(content).unwrap();
+    file.write_all(content.as_bytes())
+        .await
+        .expect("Failed to write JSON config to file.");
+}
+
+async fn remove_file(path: &str) {
+    if Path::new(path).exists() {
+        fs::remove_file(path)
+            .await
+            .expect("Failed to remove file from disk.");
     }
 }

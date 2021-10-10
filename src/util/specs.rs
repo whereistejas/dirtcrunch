@@ -67,8 +67,10 @@ struct Source {
 pub async fn get_objects(source_list: serde_yaml::Value) -> String {
     let mut sources: Vec<Source> = serde_yaml::from_value(source_list).unwrap();
 
-    // NOTE: For now, we will build only the first 3 sources. This is only for testing purposes.
-    sources.drain(3..);
+    // NOTE: For now, we will build only the first 5 sources. This is only for testing purposes.
+    if sources.len() > 5 {
+        sources.drain(5..);
+    }
 
     // Collect all `spec` commands for the given connectors into one vector.
     let tasks = sources
