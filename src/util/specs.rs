@@ -1,6 +1,7 @@
 use crate::container::Container;
 use crate::util::source::create_objects;
 use futures::{future, TryStreamExt};
+use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
 use serde_yaml;
@@ -28,13 +29,19 @@ async fn get_specs(connector: &str) -> Value {
         .collect::<Vec<_>>();
 
     // Search for the SPECS JSON object.
-    let search_string = "{\"type\": \"SPEC\",";
+    let regex = Regex::new(r#"\{"type"\s*:\s*"SPEC"\s*,"#)
+        .expect("Unable to compile given regular expression.");
+
+    // Find which element of the `result` vector contains the SPEC JSON object.
     let spec = result
         .iter()
-        .find(|s| s.contains(search_string))
+        .find(|s| regex.is_match(s))
         .expect("Could not find specs.");
-    let start_index = spec.find(search_string).expect("Could not find specs.");
 
+    // Find the index at which the SPEC JSON object starts in the string.
+    let start_index = regex.find(spec).unwrap().start();
+
+    // Split from that index to the last character of the string.
     let spec = spec.split_at(start_index).1;
 
     container

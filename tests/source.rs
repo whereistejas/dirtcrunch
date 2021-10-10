@@ -25,10 +25,21 @@ async fn test() {
   documentationUrl: https://docs.airbyte.io/integrations/sources/file
   icon: file.svg
   sourceType: file
+- sourceDefinitionId: b5ea17b1-f170-46dc-bc31-cc744ca984c1
+  name: Microsoft SQL Server (MSSQL)
+  dockerRepository: airbyte/source-mssql
+  dockerImageTag: 0.3.6
+  documentationUrl: https://docs.airbyte.io/integrations/sources/mssql
+  icon: mssql.svg
+  sourceType: database
 "#;
 
     let objects = get_objects(from_str(yaml).unwrap()).await;
     let file = create_file(objects);
+
+    assert!(file.contains("struct AmazonSellerPartner"));
+    assert!(file.contains("struct File"));
+    assert!(file.contains("struct MicrosoftSQLServer"));
 
     let tempdir = format!(
         "{}/target/tmp/_tempdir/",
