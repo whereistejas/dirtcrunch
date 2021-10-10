@@ -32,12 +32,12 @@ pub async fn get_specs(connector: &str) -> Value {
         .expect("Could not find specs.");
     let start_index = spec.find(search_string).expect("Could not find specs.");
 
-    let spec = spec.split_at(start_index);
+    let spec = spec.split_at(start_index).1;
 
     container
         .delete_container(false)
         .await
         .expect("Failed to remove connector.");
 
-    serde_json::from_str(spec.1).expect("Failed to parse the SPECS JSON object.")
+    serde_json::from_str(spec).expect("Failed to parse the SPECS JSON object.")
 }

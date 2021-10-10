@@ -72,7 +72,7 @@ impl<'a> Container<'a> {
         self.container_id = result.id;
     }
 
-    /// Start container and return a stream to read from its stdout for messages.
+    /// Start container and return a stream to read messages from its stdout.
     pub async fn start_container(
         &mut self,
         command: Vec<&str>,
