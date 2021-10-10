@@ -86,14 +86,14 @@ pub async fn get_objects(source_list: serde_yaml::Value) -> String {
         .iter()
         .zip(sources.iter())
         .map(|(spec, source)| {
-            let iter = source.name.split_whitespace();
+            let mut words = source.name.split_whitespace().collect::<Vec<_>>();
 
-            let mut name = String::new();
-            for value in iter {
-                name.push_str(value);
+            // I want to use only the first 3 words from the source's name to as the struct's name.
+            if words.len() > 3 {
+                words.drain(3..);
             }
 
-            create_objects(name.as_str(), &source.docker_repository, spec.clone())
+            create_objects(&words.join(""), &source.docker_repository, spec.clone())
         })
         .collect::<Vec<_>>()
         .join("\n")
