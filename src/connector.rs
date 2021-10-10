@@ -3,9 +3,9 @@ use async_trait::async_trait;
 use futures::{Stream, StreamExt, TryStreamExt};
 use serde_json::Value;
 use shiplift::Docker;
-use std::{env, pin::Pin};
+use std::{env, path::Path, pin::Pin};
 use tokio::{
-    fs::{create_dir, File},
+    fs::{create_dir, remove_file, File},
     io::AsyncWriteExt,
 };
 
@@ -21,7 +21,7 @@ pub trait Source<'a> {
     /// Discover the schema of the underlying datasource.
     /// NOTE: This method doesn't parse the output received from the `discover` command. The caller
     /// is expected to extracted the useful information from the returned `String`, on their own.
-    async fn discover<'docker>(&self, config: &Value) -> Vec<String> {
+    async fn discover(&self, config: &Value) -> Vec<String> {
         // Check if the `app` folder exists. We will bind this folder to the container as a volume.
         if !std::path::Path::new("app/").exists() {
             create_dir("app").await.expect(
@@ -42,10 +42,8 @@ pub trait Source<'a> {
 
         // Create the paths to the `app` folder that will be used for binding the folder to the
         // container as a volume.
-        let path = format!(
-            "{}/app/:/app",
-            env::current_dir().unwrap().to_str().unwrap()
-        );
+        let config_path = format!("{}/app/", env::current_dir().unwrap().to_str().unwrap());
+        let path = format!("{}:/app", config_path);
 
         let docker = Docker::new();
         let mut container = Container::new(&docker);
@@ -65,6 +63,13 @@ pub trait Source<'a> {
             .try_collect::<Vec<_>>()
             .await
             .expect("Failed to read command output from docker container.");
+
+        // Remove config file.
+        if Path::new(format!("{}/config", config_path).as_str()).exists() {
+            remove_file(format!("{}/config", config_path).as_str())
+                .await
+                .unwrap();
+        }
 
         // Remove the container and volumes.
         container
@@ -138,6 +143,11 @@ pub trait Source<'a> {
         // Create container, run the command and receive a stream that will be used to read from
         // the stdout of the container.
         let read = container.start_container(command, Some(volume)).await;
+
+        // NOTE: We are not cleaning the config and catalog files from our `app/` folder because
+        // the container still lives on after we exit this method. At this point, I'm not sure if
+        // the container volume copies the file into the container, or just links them to the
+        // container.
 
         // Convert the type of the `read` stream from `&[u8]` to `String`.
         read.map(|s| String::from_utf8(s.unwrap().to_vec()).unwrap())
