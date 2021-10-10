@@ -7,4 +7,4 @@ mod util;
 
 pub use connector::Source;
 pub use shiplift::Docker;
-pub use util::{container::*, file::*};
+pub use util::{source::create_file, specs::get_objects};

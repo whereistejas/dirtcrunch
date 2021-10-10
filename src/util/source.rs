@@ -10,7 +10,7 @@ CONTENT
 }
 
 /// Create the connector struct and implement the Source trait for that struct.
-pub fn create_objects(name: &str, image: &str, json: Value) -> String {
+pub(crate) fn create_objects(name: &str, image: &str, json: Value) -> String {
     r#"pub struct NAME {}
 
 impl NAME {
