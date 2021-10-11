@@ -1,4 +1,4 @@
-use dirtcrunch::{create_file, get_objects};
+use dirtcrunch::create_file;
 use serde_yaml::from_str;
 use std::path::Path;
 use std::{env, fs};
@@ -34,8 +34,7 @@ async fn test() {
   sourceType: database
 "#;
 
-    let objects = get_objects(from_str(yaml).unwrap()).await;
-    let file = create_file(objects);
+    let file = create_file(from_str(yaml).unwrap()).await;
 
     assert!(file.contains("struct AmazonSellerPartner"));
     assert!(file.contains("struct File"));

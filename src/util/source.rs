@@ -1,7 +1,10 @@
+use crate::util::specs::get_objects;
 use serde_json::Value;
 
 /// Put the Source trait objects in a `.rs` file.
-pub fn create_file(content: String) -> String {
+pub async fn create_file(source_list: serde_yaml::Value) -> String {
+    let content: String = get_objects(source_list).await;
+
     r#"use dirtcrunch::Source;
 
 CONTENT

@@ -71,7 +71,7 @@ struct Source {
 
 /// This method accepts a list of source connectors and returns a string of all the structs and
 /// trait implementations for the connectors in the given list.
-pub async fn get_objects(source_list: serde_yaml::Value) -> String {
+pub(super) async fn get_objects(source_list: serde_yaml::Value) -> String {
     let mut sources: Vec<Source> = serde_yaml::from_value(source_list).unwrap();
 
     // NOTE: For now, we will build only the first 5 sources. This is only for testing purposes.
