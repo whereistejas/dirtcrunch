@@ -5,34 +5,40 @@ use serde_json::Value;
 pub async fn create_file(source_list: serde_yaml::Value) -> String {
     let content: String = get_objects(source_list).await;
 
-    r#"use dirtcrunch::Source;
+    format!(
+        r#"
+use dirtcrunch::Source;
+{CONTENT}
 
-CONTENT
-"#
-    .replace("CONTENT", &content)
+"#,
+        CONTENT = content
+    )
 }
 
 /// Create the connector struct and implement the Source trait for that struct.
 pub(crate) fn create_objects(name: &str, image: &str, json: Value) -> String {
-    r#"pub struct NAME {}
+    format!(
+        r#"
+pub struct {NAME};
 
-impl NAME {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
+impl {NAME} {{
+    pub fn new() -> Self {{
+        Self
+    }}
+}}
 
 #[async_trait::async_trait]
-impl<'a> Source<'a> for NAME {
-    const IMAGE: &'a str = "IMAGE_NAME";
-    fn specs(&self) -> serde_json::Value { 
-        serde_json::Value::String(START SPECS END.to_string())
-    }
-}
-"#
-    .replace("IMAGE_NAME", image)
-    .replace("NAME", name)
-    .replace("START", "r#\"")
-    .replace("END", "\"#")
-    .replace("SPECS", &json.to_string())
+impl Source for {NAME} {{
+    const IMAGE: &'static str = "{IMAGE_NAME}";
+    fn specs(&self) -> serde_json::Value {{
+        serde_json::json!({START} {SPECS} {END}.to_string())
+    }}
+}}
+"#,
+        IMAGE_NAME = image,
+        NAME = name,
+        START = "r#\"",
+        END = "\"#",
+        SPECS = &json.to_string(),
+    )
 }

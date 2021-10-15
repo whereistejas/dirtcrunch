@@ -11,9 +11,9 @@ use tokio::{
 
 /// This is the core trait that defines the [Airbyte connector specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification).
 #[async_trait]
-pub trait Source<'a> {
+pub trait Source {
     /// Name of the source docker image that we are using.
-    const IMAGE: &'a str;
+    const IMAGE: &'static str;
 
     /// This method returns the SPECS for a connector.
     fn specs(&self) -> Value;
