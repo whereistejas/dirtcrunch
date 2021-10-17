@@ -1,13 +1,14 @@
 use crate::container::Container;
+use anyhow::Result;
 use async_trait::async_trait;
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt};
+use regex::Regex;
 use serde_json::Value;
 use shiplift::Docker;
 use std::{env, path::Path, pin::Pin};
-use tokio::{
-    fs::{self, create_dir, File},
-    io::AsyncWriteExt,
-};
+use tokio::fs::{self, create_dir, File};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+use tokio_util::io::StreamReader;
 
 /// This is the core trait that defines the [Airbyte connector specification](https://docs.airbyte.io/understanding-airbyte/airbyte-specification).
 #[async_trait]
@@ -21,7 +22,7 @@ pub trait Source {
     /// Discover the schema of the underlying datasource.
     /// NOTE: This method doesn't parse the output received from the `discover` command. The caller
     /// is expected to extracted the useful information from the returned `String`, on their own.
-    async fn discover(&self, config: &Value) -> Vec<String> {
+    async fn discover(&self, config: &Value) -> String {
         // Set path for the `app` folder.
         let app_path = format!("{}/app", env::current_dir().unwrap().to_str().unwrap());
 
@@ -42,33 +43,39 @@ pub trait Source {
 
         // Create container, run the command and receive a stream that will be used to read from
         // the stdout of the container.
-        let read = container
+        let stream = container
             .start_container(
                 vec!["discover", "--config", "/app/config"],
                 Some(vec![&volume_path]),
             )
             .await;
 
-        // Read command output as a byte vector.
-        let result_bytes = read
-            .try_collect::<Vec<_>>()
-            .await
-            .expect("Failed to read command output from docker container.");
+        let mut reader = StreamReader::new(stream);
+
+        let mut line = String::new();
+
+        while let Ok(result) = reader.read_line(&mut line).await {
+            if result != 0 {
+                let regex = Regex::new(r#"\{"type"\s*:\s*"CATALOG"\s*,"#)
+                    .expect("Unable to compile given regular expression.");
+
+                if regex.is_match(line.as_str()) {
+                    break;
+                } else {
+                    line.clear();
+                }
+            } else {
+                panic!("Could not find CATALOG object.")
+            }
+        }
+
+        // Remove the container and volumes.
+        container.delete_container(true).await;
 
         // Remove config file.
         remove_file(&config_path).await;
 
-        // Remove the container and volumes.
-        container
-            .delete_container(true)
-            .await
-            .expect("Failed to remove container.");
-
-        // Convert byte vectors to UTF-8 character strings.
-        result_bytes
-            .iter()
-            .map(|s| String::from_utf8(s.to_vec()).unwrap())
-            .collect::<Vec<_>>()
+        line
     }
 
     /// Read data from the connector source, based on the schema recieved from the `Discover`

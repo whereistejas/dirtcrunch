@@ -1,5 +1,7 @@
-use futures::{Stream, TryStreamExt};
-use shiplift::{tty::TtyChunk, Docker, Result};
+use anyhow::Result;
+use bytes::Bytes;
+use futures::{Stream, StreamExt, TryStreamExt};
+use shiplift::Docker;
 use shiplift::{ContainerOptions, PullOptions, RmContainerOptions};
 
 /// The `Container` struct serves as the base for our interaction with the lower-level `shiplift`
@@ -77,7 +79,7 @@ impl<'a> Container<'a> {
         &mut self,
         command: Vec<&str>,
         volume: Option<Vec<&str>>,
-    ) -> impl Stream<Item = Result<TtyChunk>> + 'a {
+    ) -> impl Stream<Item = Result<Bytes, std::io::Error>> + 'a {
         // Create the container.
         self.create_container(command, volume).await;
 
@@ -88,7 +90,7 @@ impl<'a> Container<'a> {
         // Start container
         container.start().await.expect("Failed to start container.");
 
-        read
+        read.map(|chunk| Ok(Bytes::from(chunk.unwrap().to_vec())))
     }
 
     /// Remove container and volumes.

@@ -1,6 +1,5 @@
 use dirtcrunch::create_file;
 use serde_yaml::from_str;
-use std::path::Path;
 use std::{env, fs};
 
 #[tokio::test]
@@ -40,15 +39,7 @@ async fn test() {
     assert!(file.contains("struct File"));
     assert!(file.contains("struct MicrosoftSQLServer"));
 
-    let tempdir = format!(
-        "{}/target/tmp/_tempdir/",
-        env::var("CARGO_MANIFEST_DIR").unwrap()
-    );
+    let source_path = format!("{}/sources.rs", env::var("OUT_DIR").unwrap());
 
-    if !Path::new(&tempdir).exists() {
-        fs::create_dir(&tempdir).expect("Failed to create the test directory")
-    }
-
-    let source_path = format!("{}/sources.rs", tempdir);
     assert!(fs::write(source_path, &file).is_ok());
 }

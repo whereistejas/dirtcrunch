@@ -6,9 +6,11 @@ use serde::Deserialize;
 use serde_json::Value;
 use serde_yaml;
 use shiplift::Docker;
+use tokio::io::AsyncBufReadExt;
+use tokio_util::io::StreamReader;
 
 /// This method returns the SPECS of the source connector.
-async fn get_specs(connector: &str) -> Value {
+async fn get_specs(connector: &str, tag: &str) -> Result<Value, String> {
     let docker = Docker::new();
     let mut container = Container::new(&docker);
 
@@ -16,40 +18,28 @@ async fn get_specs(connector: &str) -> Value {
     container.imagename(connector);
     container.prepare_image().await;
 
-    let read = container.start_container(vec!["spec"], None).await;
+    let stream = container.start_container(vec!["spec"], None).await;
 
-    let result_bytes = read
-        .try_collect::<Vec<_>>()
-        .await
-        .expect("Failed to read command output from docker container.");
+    let mut reader = StreamReader::new(stream);
 
-    let result = result_bytes
-        .iter()
-        .map(|s| String::from_utf8(s.to_vec()).unwrap())
-        .collect::<Vec<_>>();
+    let mut line = String::new();
 
-    // Search for the SPECS JSON object.
-    let regex = Regex::new(r#"\{"type"\s*:\s*"SPEC"\s*,"#)
-        .expect("Unable to compile given regular expression.");
+    while let Ok(result) = reader.read_line(&mut line).await {
+        if result != 0 {
+            let regex = Regex::new(r#"\{"type"\s*:\s*"SPEC"\s*,"#)
+                .expect("Unable to compile given regular expression.");
 
-    // Find which element of the `result` vector contains the SPEC JSON object.
-    let spec = result
-        .iter()
-        .find(|s| regex.is_match(s))
-        .expect("Could not find specs.");
+            if regex.is_match(line.as_str()) {
+                break;
+            } else {
+                line.clear();
+            }
+        } else {
+            panic!("Could not find CATALOG object.")
+        }
+    }
 
-    // Find the index at which the SPEC JSON object starts in the string.
-    let start_index = regex.find(spec).unwrap().start();
-
-    // Split from that index to the last character of the string.
-    let spec = spec.split_at(start_index).1;
-
-    container
-        .delete_container(false)
-        .await
-        .expect("Failed to remove connector.");
-
-    serde_json::from_str(spec).expect("Failed to parse the SPECS JSON object.")
+    Ok(serde_json::from_str(&line).expect("Failed to parse the SPECS JSON object."))
 }
 
 /// This struct stores the information from the following file in the main airbyte repository:
@@ -99,6 +89,8 @@ pub(super) async fn get_objects(source_list: serde_yaml::Value) -> String {
             if words.len() > 3 {
                 words.drain(3..);
             }
+
+            let spec = spec.as_ref().unwrap();
 
             create_objects(&words.join(""), &source.docker_repository, spec.clone())
         })
