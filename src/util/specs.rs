@@ -24,7 +24,6 @@ async fn get_specs(connector: &str, tag: &str) -> Result<Value, String> {
     let mut reader = StreamReader::new(stream);
 
     let mut line = String::new();
-
     while let Ok(result) = reader.read_line(&mut line).await {
         if result != 0 {
             let regex = Regex::new(r#"\{"type"\s*:\s*"SPEC"\s*,"#)
@@ -36,7 +35,7 @@ async fn get_specs(connector: &str, tag: &str) -> Result<Value, String> {
                 line.clear();
             }
         } else {
-            panic!("Could not find CATALOG object.")
+            panic!("Could not find SPEC object.")
         }
     }
 
@@ -69,6 +68,7 @@ pub(super) async fn get_objects(source_list: serde_yaml::Value) -> String {
     let mut sources: Vec<Source> = serde_yaml::from_value(source_list).unwrap();
 
     // NOTE: For now, we will build only the first 5 sources. This is only for testing purposes.
+    // TODO: Remove this when we publish this crate for good.
     if sources.len() > 5 {
         sources.drain(5..);
     }
@@ -89,14 +89,16 @@ pub(super) async fn get_objects(source_list: serde_yaml::Value) -> String {
         .map(|(spec, source)| {
             let mut words = source.name.split_whitespace().collect::<Vec<_>>();
 
-            // I want to use only the first 3 words from the source's name to as the struct's name.
+            // Use only the first 3 words from the source's name to create the struct's name.
             if words.len() > 3 {
                 words.drain(3..);
             }
 
-            let spec = spec.as_ref().unwrap();
-
-            create_objects(&words.join(""), &source.docker_repository, spec.clone())
+            create_objects(
+                &words.join(""),
+                &source.docker_repository,
+                spec.as_ref().unwrap().clone(),
+            )
         })
         .collect::<Vec<_>>()
         .join("\n")

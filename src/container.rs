@@ -99,10 +99,12 @@ impl<'a> Container<'a> {
         // Start container
         container.start().await.expect("Failed to start container.");
 
+        // This unholy contraption of using `Bytes` is all because we want to use `StreamReader` on our stream.
+        // TODO: `Bytes` is an unnecessary dependency and should be replaced by &[u8] in the future.
         read.map(|chunk| Ok(Bytes::from(chunk.unwrap().to_vec())))
     }
 
-    /// Remove container and volumes.
+    /// Stop and remove container and volumes.
     pub async fn delete_container(&mut self, volume: bool) {
         let container = self.docker.containers().get(&self.container_id);
         let opts = RmContainerOptions::builder().volumes(volume).build();

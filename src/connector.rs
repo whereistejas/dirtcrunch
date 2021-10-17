@@ -20,8 +20,7 @@ pub trait Source {
     fn specs(&self) -> Value;
 
     /// Discover the schema of the underlying datasource.
-    /// NOTE: This method doesn't parse the output received from the `discover` command. The caller
-    /// is expected to extracted the useful information from the returned `String`, on their own.
+    /// This method returns the CATALOG json object as a String.
     async fn discover(&self, config: &Value) -> String {
         // Set path for the `app` folder.
         let app_path = format!("{}/app", env::current_dir().unwrap().to_str().unwrap());
@@ -50,19 +49,19 @@ pub trait Source {
             )
             .await;
 
+        // Convert `Stream` to `StreamReader` object. This allows us to use utilities from `AsyncBufReadNext` on the stream.
         let mut reader = StreamReader::new(stream);
 
-        let mut line = String::new();
-
-        while let Ok(result) = reader.read_line(&mut line).await {
+        let mut catalog = String::new();
+        while let Ok(result) = reader.read_line(&mut catalog).await {
             if result != 0 {
                 let regex = Regex::new(r#"\{"type"\s*:\s*"CATALOG"\s*,"#)
                     .expect("Unable to compile given regular expression.");
 
-                if regex.is_match(line.as_str()) {
+                if regex.is_match(catalog.as_str()) {
                     break;
                 } else {
-                    line.clear();
+                    catalog.clear();
                 }
             } else {
                 panic!("Could not find CATALOG object.")
@@ -75,7 +74,7 @@ pub trait Source {
         // Remove config file.
         remove_file(&config_path).await;
 
-        line
+        catalog
     }
 
     /// Read data from the connector source, based on the schema received from the `Discover`
@@ -129,7 +128,7 @@ pub trait Source {
         // remove_file(&config_path).await;
         // remove_file(&catalog_path).await;
 
-        // Convert the type of the `read` stream from `&[u8]` to `String`.
+        // Convert the type of the `read` stream from `Bytes` to `String`.
         read.map(|s| String::from_utf8(s.unwrap().to_vec()).unwrap())
             .boxed()
     }
@@ -138,10 +137,11 @@ pub trait Source {
 async fn create_app_folder(path: &str) -> Result<(), std::io::Error> {
     // Check if the `app` folder exists. We will bind this folder to the container as a volume.
     if !std::path::Path::new(path).exists() {
-        create_dir(path).await
-    } else {
-        Ok(())
+        create_dir(path)
+            .await
+            .expect("Failed to create new folder.")
     }
+    Ok(())
 }
 
 async fn write_file(file_path: &str, content: &Value) {
