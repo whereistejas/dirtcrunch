@@ -1,6 +1,6 @@
 use crate::container::Container;
 use crate::util::source::create_objects;
-use futures::{future, TryStreamExt};
+use futures::future;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,8 +14,9 @@ async fn get_specs(connector: &str, tag: &str) -> Result<Value, String> {
     let docker = Docker::new();
     let mut container = Container::new(&docker);
 
-    // Set the image name.
-    container.imagename(connector);
+    // Set the image name and tag and pull the image from docker-hub.
+    container.image_name(connector);
+    container.image_tag(tag);
     container.prepare_image().await;
 
     let stream = container.start_container(vec!["spec"], None).await;
@@ -47,14 +48,17 @@ async fn get_specs(connector: &str, tag: &str) -> Result<Value, String> {
 #[derive(Deserialize, Debug)]
 struct Source {
     name: String,
+    #[allow(dead_code)]
     #[serde(rename(deserialize = "sourceDefinitionId"))]
     source_definition_id: String,
     #[serde(rename(deserialize = "dockerRepository"))]
     docker_repository: String,
     #[serde(rename(deserialize = "dockerImageTag"))]
     docker_image_tag: String,
+    #[allow(dead_code)]
     #[serde(rename(deserialize = "sourceType"))]
     source_type: String,
+    #[allow(dead_code)]
     #[serde(rename(deserialize = "documentationUrl"))]
     documentation_url: String,
 }
@@ -72,7 +76,7 @@ pub(super) async fn get_objects(source_list: serde_yaml::Value) -> String {
     // Collect all `spec` commands for the given connectors into one vector.
     let tasks = sources
         .iter()
-        .map(|source| get_specs(&source.docker_repository))
+        .map(|source| get_specs(&source.docker_repository, &source.docker_image_tag))
         .collect::<Vec<_>>();
 
     // Run all tasks, parallellllllll-ly.

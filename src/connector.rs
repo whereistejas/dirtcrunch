@@ -35,7 +35,7 @@ pub trait Source {
 
         let docker = Docker::new();
         let mut container = Container::new(&docker);
-        container.imagename(Self::IMAGE);
+        container.image_name(Self::IMAGE);
 
         // Create the paths to the `app` folder that will be used for binding the folder to the
         // container as a volume.
@@ -78,9 +78,9 @@ pub trait Source {
         line
     }
 
-    /// Read data from the connector source, based on the schema recieved from the `Discover`
+    /// Read data from the connector source, based on the schema received from the `Discover`
     /// command.
-    /// NOTE: This method returns a Stream which will have to awaited to recieve data from the
+    /// NOTE: This method returns a Stream which will have to awaited to receive data from the
     /// source.
     async fn read<'docker>(
         &self,
@@ -102,7 +102,7 @@ pub trait Source {
         write_file(&catalog_path, catalog).await;
 
         let mut container = Container::new(docker);
-        container.imagename(Self::IMAGE);
+        container.image_name(Self::IMAGE);
 
         let command = vec![
             "read",

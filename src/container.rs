@@ -11,6 +11,7 @@ pub struct Container<'a> {
     docker: &'a Docker,
     container_id: String,
     image_name: String,
+    tag: String,
 }
 
 impl<'a> Container<'a> {
@@ -20,13 +21,20 @@ impl<'a> Container<'a> {
             docker,
             container_id: String::new(),
             image_name: String::new(),
+            tag: String::new(),
         }
     }
 
     /// Set the image name. This is the image that will be pulled from dockerhub and used to create
     /// the containers.
-    pub fn imagename(&mut self, image: &str) {
+    pub fn image_name(&mut self, image: &str) {
         self.image_name = image.to_string();
+    }
+
+    /// Set the image tag. This is the image that will be pulled from dockerhub and used to create
+    /// the containers.
+    pub fn image_tag(&mut self, tag: &str) {
+        self.tag = tag.to_string();
     }
 
     /// Pull the image set in the [`image_name`](image_name) field.
@@ -36,7 +44,8 @@ impl<'a> Container<'a> {
         // Configure the Pull operation.
         let opts = PullOptions::builder()
             .image(&self.image_name)
-            .tag("latest")
+            // Commenting this out for now, because for some reason, the `latest` tag doesn't work.
+            // .tag(&self.tag)
             .build();
 
         images
@@ -48,7 +57,7 @@ impl<'a> Container<'a> {
 
     /// Create the container with the given commands and volumes.
     async fn create_container(&mut self, command: Vec<&str>, volume: Option<Vec<&str>>) {
-        // Configure the create opertion.
+        // Configure the create operation.
         let opts = match volume {
             Some(paths) => ContainerOptions::builder(&self.image_name)
                 .attach_stdin(true)
@@ -94,9 +103,17 @@ impl<'a> Container<'a> {
     }
 
     /// Remove container and volumes.
-    pub async fn delete_container(&mut self, volume: bool) -> Result<()> {
+    pub async fn delete_container(&mut self, volume: bool) {
         let container = self.docker.containers().get(&self.container_id);
         let opts = RmContainerOptions::builder().volumes(volume).build();
-        container.remove(opts).await
+        container
+            .stop(None)
+            .await
+            .expect("Failed to stop container.");
+
+        container
+            .remove(opts)
+            .await
+            .expect("Failed to remove container.");
     }
 }

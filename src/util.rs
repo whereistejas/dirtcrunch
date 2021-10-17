@@ -6,6 +6,3 @@ pub mod source;
 
 // Methods to create the `Config` struct.
 pub mod config;
-
-use source::*;
-use specs::*;
