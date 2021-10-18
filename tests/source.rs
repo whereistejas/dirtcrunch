@@ -33,13 +33,16 @@ async fn test() {
   sourceType: database
 "#;
 
+    let path = env!("CARGO_TARGET_TMPDIR");
+    println!("{:?}", path);
+
     let file = create_file(from_str(yaml).unwrap()).await;
 
     assert!(file.contains("struct AmazonSellerPartner"));
     assert!(file.contains("struct File"));
     assert!(file.contains("struct MicrosoftSQLServer"));
 
-    let source_path = format!("{}/sources.rs", env::var("OUT_DIR").unwrap());
+    let source_path = format!("{}/sources.rs", path);
 
     assert!(fs::write(source_path, &file).is_ok());
 }

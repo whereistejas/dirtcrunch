@@ -45,7 +45,7 @@ impl<'a> Container<'a> {
         let opts = PullOptions::builder()
             .image(&self.image_name)
             // Commenting this out for now, because for some reason, the `latest` tag doesn't work.
-            // .tag(&self.tag)
+            .tag(&self.tag)
             .build();
 
         images
@@ -57,15 +57,21 @@ impl<'a> Container<'a> {
 
     /// Create the container with the given commands and volumes.
     async fn create_container(&mut self, command: Vec<&str>, volume: Option<Vec<&str>>) {
+        let image_name = if !&self.tag.is_empty() {
+            format!("{}:{}", &self.image_name, &self.tag)
+        } else {
+            self.image_name.clone().to_string()
+        };
+
         // Configure the create operation.
         let opts = match volume {
-            Some(paths) => ContainerOptions::builder(&self.image_name)
+            Some(paths) => ContainerOptions::builder(&image_name)
                 .attach_stdin(true)
                 .attach_stdout(true)
                 .cmd(command)
                 .volumes(paths)
                 .build(),
-            None => ContainerOptions::builder(&self.image_name)
+            None => ContainerOptions::builder(&image_name)
                 .attach_stdin(true)
                 .attach_stdout(true)
                 .cmd(command)

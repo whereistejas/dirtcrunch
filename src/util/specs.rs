@@ -1,6 +1,7 @@
 use crate::container::Container;
 use crate::util::source::create_objects;
 use futures::future;
+use log::info;
 use regex::Regex;
 use serde::Deserialize;
 use serde_json::Value;
@@ -14,10 +15,16 @@ async fn get_specs(connector: &str, tag: &str) -> Result<Value, String> {
     let docker = Docker::new();
     let mut container = Container::new(&docker);
 
+    info!("Preparing connector: {}", connector);
+
     // Set the image name and tag and pull the image from docker-hub.
     container.image_name(connector);
     container.image_tag(tag);
     container.prepare_image().await;
+
+    info!("Finished preparing connector: {}", connector);
+
+    info!("Start searching for SPECS object: {}.", connector);
 
     let stream = container.start_container(vec!["spec"], None).await;
 
@@ -38,6 +45,8 @@ async fn get_specs(connector: &str, tag: &str) -> Result<Value, String> {
             panic!("Could not find SPEC object.")
         }
     }
+
+    info!("Finish searching for SPECS object: {}.", connector);
 
     Ok(serde_json::from_str(&line).expect("Failed to parse the SPECS JSON object."))
 }
@@ -79,8 +88,12 @@ pub(super) async fn get_objects(source_list: serde_yaml::Value) -> String {
         .map(|source| get_specs(&source.docker_repository, &source.docker_image_tag))
         .collect::<Vec<_>>();
 
+    info!("Start running all tasks.");
+
     // Run all tasks, parallellllllll-ly.
     let specs = future::join_all(tasks).await;
+
+    info!("Finish running all tasks.");
 
     // Convert SPECS JSON objects into structs and trait impls source code.
     specs
@@ -94,11 +107,15 @@ pub(super) async fn get_objects(source_list: serde_yaml::Value) -> String {
                 words.drain(3..);
             }
 
-            create_objects(
+            info!("Start preparing objects: {}", &source.docker_repository);
+            let object = create_objects(
                 &words.join(""),
-                &source.docker_repository,
+                format!("{}:{}", &source.docker_repository, &source.docker_image_tag).as_str(),
                 spec.as_ref().unwrap().clone(),
-            )
+            );
+            info!("Finish preparing objects: {}", &source.docker_repository);
+
+            object
         })
         .collect::<Vec<_>>()
         .join("\n")
